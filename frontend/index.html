@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI E-posta Asistanı</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+    <!-- Yükleme Ekranı -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="ai-brain">
+                <i class="fas fa-brain"></i>
+            </div>
+            <h2>AI E-posta Asistanı</h2>
+            <p id="loading-text">Başlatılıyor...</p>
+            <div class="loading-bar">
+                <div class="loading-progress" id="loading-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- SOL KENAR ÇUBUĞU -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Mail</span>
+                </div>
+            </div>
+
+            <!-- Yeni E-posta Butonu -->
+            <button class="compose-btn" onclick="showComposeModal()">
+                <i class="fas fa-plus"></i>
+                <span>E-posta Ekle</span>
+            </button>
+
+            <!-- Menü -->
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" onclick="filterEmails('all', this)">
+                    <i class="fas fa-inbox"></i>
+                    <span>Gelen Kutusu</span>
+                    <span class="badge" id="badge-all"></span>
+                </a>
+                <a href="#" class="nav-item" onclick="filterEmails('unread', this)">
+                    <i class="fas fa-envelope"></i>
+                    <span>Okunmamış</span>
+                    <span class="badge" id="badge-unread"></span>
+                </a>
+                <a href="#" class="nav-item" onclick="filterEmails('starred', this)">
+                    <i class="fas fa-star"></i>
+                    <span>Yıldızlı</span>
+                </a>
+                <a href="#" class="nav-item" onclick="filterEmails('response', this)">
+                    <i class="fas fa-reply"></i>
+                    <span>Yanıt Bekleyen</span>
+                    <span class="badge urgent" id="badge-response"></span>
+                </a>
+                <a href="#" class="nav-item" onclick="filterEmails('spam', this)">
+                    <i class="fas fa-ban"></i>
+                    <span>Spam</span>
+                </a>
+                <a href="#" class="nav-item" onclick="showArchive()">
+                    <i class="fas fa-archive"></i>
+                    <span>Arşiv</span>
+                </a>
+            </nav>
+
+            <!-- Kategoriler -->
+            <div class="sidebar-section">
+                <h3>Kategoriler</h3>
+                <div id="category-list"></div>
+            </div>
+
+            <!-- Demo & Araçlar -->
+            <div class="sidebar-section">
+                <h3>Araçlar</h3>
+                <button class="tool-btn" onclick="loadDemoData()" id="demo-btn">
+                    <i class="fas fa-database"></i>
+                    <span>Demo Verileri Yükle</span>
+                </button>
+                <button class="tool-btn" onclick="fetchFromIMAP()">
+                    <i class="fas fa-download"></i>
+                    <span>IMAP'tan Çek</span>
+                </button>
+            </div>
+
+            <!-- İstatistikler -->
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Toplam</span>
+                    <span class="stat-value" id="stat-total">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Okunmamış</span>
+                    <span class="stat-value highlight" id="stat-unread">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Yanıt Bekleyen</span>
+                    <span class="stat-value urgent" id="stat-response">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ANA İÇERİK -->
+        <main class="main-content">
+            <!-- Üst Çubuk -->
+            <header class="top-bar">
+                <div class="search-container">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="search-input" placeholder="E-posta ara..." oninput="searchEmails(this.value)">
+                </div>
+                <div class="top-actions">
+                    <button class="action-btn" onclick="refreshEmails()" title="Yenile">
+                        <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                    </button>
+                    <button class="action-btn" onclick="batchClassify()" title="Toplu Sınıflandır">
+                        <i class="fas fa-magic"></i>
+                        <span>Toplu AI Analiz</span>
+                    </button>
+                    <button class="action-btn" onclick="showStats()" title="İstatistikler">
+                        <i class="fas fa-chart-bar"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- E-posta Listesi -->
+            <div class="email-list-container">
+                <div class="list-header">
+                    <h2 id="list-title">Gelen Kutusu</h2>
+                    <span id="email-count" class="count-badge">0 e-posta</span>
+                </div>
+
+                <!-- Yükleme Animasyonu -->
+                <div id="list-loading" class="list-loading hidden">
+                    <div class="spinner"></div>
+                    <p>E-postalar yükleniyor...</p>
+                </div>
+
+                <!-- Boş Durum -->
+                <div id="empty-state" class="empty-state hidden">
+                    <i class="fas fa-inbox"></i>
+                    <h3>Henüz e-posta yok</h3>
+                    <p>Demo verilerini yükleyin veya IMAP'tan e-posta çekin.</p>
+                    <button onclick="loadDemoData()" class="primary-btn">
+                        <i class="fas fa-database"></i> Demo Verilerini Yükle
+                    </button>
+                </div>
+
+                <!-- E-posta Listesi -->
+                <div id="email-list" class="email-list"></div>
+
+                <!-- Sayfalama -->
+                <div id="pagination" class="pagination hidden">
+                    <button onclick="prevPage()" id="prev-btn" disabled>
+                        <i class="fas fa-chevron-left"></i> Önceki
+                    </button>
+                    <span id="page-info">Sayfa 1</span>
+                    <button onclick="nextPage()" id="next-btn">
+                        Sonraki <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- SAĞ PANEL: E-posta Detayı -->
+        <div id="email-detail" class="email-detail hidden">
+            <div class="detail-header">
+                <button onclick="closeDetail()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="detail-actions">
+                    <button onclick="toggleStar()" id="star-btn" title="Yıldız">
+                        <i class="fas fa-star"></i>
+                    </button>
+                    <button onclick="archiveEmail()" title="Arşivle">
+                        <i class="fas fa-archive"></i>
+                    </button>
+                    <button onclick="deleteCurrentEmail()" title="Sil">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="detail-content">
+                <!-- E-posta Başlığı -->
+                <div class="email-header-detail">
+                    <h1 id="detail-subject"></h1>
+                    <div class="email-meta">
+                        <div class="sender-info">
+                            <div class="avatar" id="detail-avatar"></div>
+                            <div>
+                                <strong id="detail-sender-name"></strong>
+                                <span id="detail-sender-email"></span>
+                            </div>
+                        </div>
+                        <span id="detail-date" class="email-date"></span>
+                    </div>
+
+                    <!-- AI Analiz Sonuçları -->
+                    <div id="ai-analysis" class="ai-analysis">
+                        <div class="analysis-badges">
+                            <span id="badge-category" class="cat-badge"></span>
+                            <span id="badge-priority" class="priority-badge"></span>
+                            <span id="badge-sentiment" class="sentiment-badge"></span>
+                        </div>
+                        <div id="ai-summary" class="ai-summary"></div>
+                        <div id="ai-tags" class="ai-tags"></div>
+                        <div id="urgency-reason" class="urgency-box hidden"></div>
+                    </div>
+                </div>
+
+                <!-- E-posta Gövdesi -->
+                <div id="email-body" class="email-body"></div>
+
+                <!-- Yanıt Bölümü -->
+                <div class="response-section">
+                    <h3><i class="fas fa-robot"></i> AI Yanıt Üretici</h3>
+
+                    <div id="classify-btn-container" class="classify-section">
+                        <button onclick="classifyCurrentEmail()" class="ai-btn" id="classify-btn">
+                            <i class="fas fa-magic"></i> AI ile Analiz Et
+                        </button>
+                    </div>
+
+                    <div class="response-options">
+                        <select id="response-tone">
+                            <option value="Resmi">Resmi Ton</option>
+                            <option value="Samimi">Samimi Ton</option>
+                            <option value="Teknik">Teknik Ton</option>
+                        </select>
+                        <select id="response-lang">
+                            <option value="Türkçe">Türkçe</option>
+                            <option value="İngilizce">İngilizce</option>
+                            <option value="Almanca">Almanca</option>
+                        </select>
+                        <button onclick="generateResponse()" class="ai-btn" id="generate-btn">
+                            <i class="fas fa-wand-magic-sparkles"></i> Yanıt Üret
+                        </button>
+                    </div>
+
+                    <div id="extra-context-container">
+                        <input type="text" id="extra-context" placeholder="Ek bağlam (isteğe bağlı)...">
+                    </div>
+
+                    <!-- Üretilen Yanıt -->
+                    <div id="response-container" class="response-container hidden">
+                        <div class="response-header">
+                            <h4><i class="fas fa-reply"></i> Üretilen Yanıt</h4>
+                            <div class="response-actions">
+                                <button onclick="copyResponse()" class="small-btn">
+                                    <i class="fas fa-copy"></i> Kopyala
+                                </button>
+                                <button onclick="sendResponse()" class="small-btn primary">
+                                    <i class="fas fa-paper-plane"></i> Gönder
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="response-text" class="response-textarea"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: E-posta Ekle -->
+    <div id="compose-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-envelope-open-text"></i> Yeni E-posta Ekle</h2>
+                <button onclick="closeModal('compose-modal')" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Gönderen *</label>
+                    <input type="email" id="compose-sender" placeholder="gönderen@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Gönderen Adı</label>
+                    <input type="text" id="compose-sender-name" placeholder="Ad Soyad">
+                </div>
+                <div class="form-group">
+                    <label>Konu *</label>
+                    <input type="text" id="compose-subject" placeholder="E-posta konusu">
+                </div>
+                <div class="form-group">
+                    <label>İçerik *</label>
+                    <textarea id="compose-body" rows="8" placeholder="E-posta içeriği..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button onclick="closeModal('compose-modal')" class="cancel-btn">İptal</button>
+                    <button onclick="submitEmail()" class="primary-btn">
+                        <i class="fas fa-plus"></i> E-posta Ekle & Analiz Et
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: İstatistikler -->
+    <div id="stats-modal" class="modal hidden">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2><i class="fas fa-chart-pie"></i> Analiz & İstatistikler</h2>
+                <button onclick="closeModal('stats-modal')" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="stats-content"></div>
+        </div>
+    </div>
+
+    <!-- Bildirim -->
+    <div id="notification" class="notification hidden"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
