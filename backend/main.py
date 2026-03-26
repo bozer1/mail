@@ -381,6 +381,16 @@ async def send_response(response_id: int, db: AsyncSession = Depends(get_db)):
     if auto_response.is_sent:
         raise HTTPException(status_code=400, detail="Bu yanıt zaten gönderildi")
 
+    smtp_user = os.getenv("SMTP_USERNAME", "")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+
+    if not smtp_user or smtp_user == "your_email@gmail.com" or not smtp_pass:
+        # SMTP ayarsız → sadece "gönderildi" olarak işaretle (demo modu)
+        auto_response.is_sent = True
+        auto_response.sent_at = datetime.utcnow()
+        await db.commit()
+        return {"message": "Yanıt kaydedildi (SMTP ayarı olmadığı için gerçek gönderim yapılmadı)"}
+
     try:
         smtp = get_smtp_client()
         success = smtp.send_email(

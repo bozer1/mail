@@ -93,7 +93,6 @@ Tam olarak şu JSON yapısını döndür:
             response = self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
-                thinking={"type": "adaptive"},
                 system=SYSTEM_PROMPT_CLASSIFIER,
                 messages=[{"role": "user", "content": prompt}]
             )
