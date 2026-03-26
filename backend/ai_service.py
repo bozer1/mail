@@ -123,9 +123,13 @@ Tam olarak şu JSON yapısını döndür:
         except json.JSONDecodeError as e:
             logger.error(f"JSON parse hatası: {e}, Yanıt: {text_content}")
             return self._default_classification()
+        except anthropic.BadRequestError as e:
+            if "credit balance" in str(e).lower():
+                raise ValueError("Anthropic API krediniz yetersiz. Lütfen console.anthropic.com adresinden hesabınıza kredi yükleyin.")
+            raise
         except anthropic.APIError as e:
             logger.error(f"Anthropic API hatası: {e}")
-            return self._default_classification()
+            raise ValueError(f"Anthropic API hatası: {str(e)}")
 
     async def generate_response(
         self,
@@ -167,9 +171,13 @@ Sadece yanıt metnini yaz. Başka açıklama ekleme."""
                     response_text += text
                 return response_text.strip()
 
+        except anthropic.BadRequestError as e:
+            if "credit balance" in str(e).lower():
+                raise ValueError("Anthropic API krediniz yetersiz. Lütfen hesabınıza kredi yükleyin.")
+            raise
         except anthropic.APIError as e:
             logger.error(f"Yanıt üretme hatası: {e}")
-            return f"Sayın {sender_display},\n\nE-postanız alınmıştır. En kısa sürede dönüş yapacağız.\n\nSaygılarımızla"
+            raise ValueError(f"Anthropic API hatası: {str(e)}")
 
     async def batch_classify(self, emails: list) -> list:
         """Birden fazla e-postayı toplu sınıflandır."""
