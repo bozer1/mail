@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
+import anthropic
 from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -263,14 +264,22 @@ async def classify_email(email_id: int, db: AsyncSession = Depends(get_db)):
         email.is_spam = classification["category"] == "Spam"
 
         await db.commit()
-        await db.refresh(email)
+
+        result2 = await db.execute(
+            select(Email).options(selectinload(Email.auto_responses)).where(Email.id == email_id)
+        )
+        updated = result2.scalar_one()
 
         return {
             "message": "E-posta başarıyla sınıflandırıldı",
             "classification": classification,
-            "email": email.to_dict()
+            "email": updated.to_dict()
         }
 
+    except anthropic.BadRequestError as e:
+        if "credit balance" in str(e).lower():
+            raise HTTPException(status_code=402, detail="Anthropic API krediniz yetersiz. Lütfen hesabınıza kredi yükleyin.")
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
