@@ -16,10 +16,10 @@ from sqlalchemy.orm import selectinload
 from dotenv import load_dotenv
 
 from backend.database import get_db, init_db
-from backend.models import Email, AutoResponse
+from backend.models import Email, AutoResponse, UserSettings
 from backend.schemas import (
     EmailCreate, EmailUpdate, AutoResponseCreate,
-    BatchAnalyzeRequest, SendEmailRequest
+    BatchAnalyzeRequest, SendEmailRequest, SettingsUpdate
 )
 from backend.ai_service import get_ai_service
 from backend.demo_data import get_demo_emails
@@ -390,8 +390,9 @@ async def send_response(response_id: int, db: AsyncSession = Depends(get_db)):
     if auto_response.is_sent:
         raise HTTPException(status_code=400, detail="Bu yanıt zaten gönderildi")
 
-    smtp_user = os.getenv("SMTP_USERNAME", "")
-    smtp_pass = os.getenv("SMTP_PASSWORD", "")
+    cfg = await _load_settings(db)
+    smtp_user = cfg["smtp_username"]
+    smtp_pass = cfg["smtp_password"]
 
     if not smtp_user or smtp_user == "your_email@gmail.com" or not smtp_pass:
         # SMTP ayarsız → sadece "gönderildi" olarak işaretle (demo modu)
@@ -401,7 +402,10 @@ async def send_response(response_id: int, db: AsyncSession = Depends(get_db)):
         return {"message": "Yanıt kaydedildi (SMTP ayarı olmadığı için gerçek gönderim yapılmadı)"}
 
     try:
-        smtp = get_smtp_client()
+        smtp = get_smtp_client(
+            host=cfg["smtp_host"], port=cfg["smtp_port"],
+            username=smtp_user, password=smtp_pass
+        )
         success = smtp.send_email(
             to_address=auto_response.email.sender,
             subject=auto_response.email.subject,
@@ -551,6 +555,29 @@ async def load_demo_data(
     }
 
 
+async def _load_settings(db: AsyncSession) -> dict:
+    """DB'den kullanıcı ayarlarını yükle, yoksa .env'den al."""
+    result = await db.execute(select(UserSettings).limit(1))
+    s = result.scalar_one_or_none()
+    if s and s.imap_username:
+        return {
+            "imap_host": s.imap_host, "imap_port": s.imap_port,
+            "imap_username": s.imap_username, "imap_password": s.imap_password,
+            "smtp_host": s.smtp_host, "smtp_port": s.smtp_port,
+            "smtp_username": s.smtp_username, "smtp_password": s.smtp_password,
+        }
+    return {
+        "imap_host": os.getenv("IMAP_HOST", "imap.gmail.com"),
+        "imap_port": int(os.getenv("IMAP_PORT", "993")),
+        "imap_username": os.getenv("IMAP_USERNAME", ""),
+        "imap_password": os.getenv("IMAP_PASSWORD", ""),
+        "smtp_host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
+        "smtp_port": int(os.getenv("SMTP_PORT", "587")),
+        "smtp_username": os.getenv("SMTP_USERNAME", ""),
+        "smtp_password": os.getenv("SMTP_PASSWORD", ""),
+    }
+
+
 @app.post("/api/imap/fetch", summary="IMAP'tan e-posta çek")
 async def fetch_from_imap(
     folder: str = Query("INBOX"),
@@ -558,7 +585,11 @@ async def fetch_from_imap(
     db: AsyncSession = Depends(get_db)
 ):
     """IMAP sunucusundan e-posta çek."""
-    client = get_imap_client()
+    cfg = await _load_settings(db)
+    client = get_imap_client(
+        host=cfg["imap_host"], port=cfg["imap_port"],
+        username=cfg["imap_username"], password=cfg["imap_password"]
+    )
     emails = client.fetch_emails(folder=folder, limit=limit)
     client.disconnect()
 
@@ -612,6 +643,66 @@ async def fetch_from_imap(
             logger.warning(f"Sınıflandırma hatası: {e}")
 
     return {"message": f"{added} yeni e-posta eklendi", "added": added}
+
+
+# =================== AYARLAR ENDPOINT'LERİ ===================
+
+@app.get("/api/settings", summary="Kullanıcı ayarlarını getir")
+async def get_settings(db: AsyncSession = Depends(get_db)):
+    """Kayıtlı IMAP/SMTP ayarlarını getir (şifre hariç)."""
+    result = await db.execute(select(UserSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    if not settings:
+        return {
+            "imap_host": os.getenv("IMAP_HOST", "imap.gmail.com"),
+            "imap_port": int(os.getenv("IMAP_PORT", "993")),
+            "imap_username": os.getenv("IMAP_USERNAME", ""),
+            "imap_password_set": bool(os.getenv("IMAP_PASSWORD", "")),
+            "smtp_host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
+            "smtp_port": int(os.getenv("SMTP_PORT", "587")),
+            "smtp_username": os.getenv("SMTP_USERNAME", ""),
+            "smtp_password_set": bool(os.getenv("SMTP_PASSWORD", "")),
+            "updated_at": None,
+        }
+    return settings.to_dict()
+
+
+@app.post("/api/settings", summary="Kullanıcı ayarlarını kaydet")
+async def save_settings(settings_data: SettingsUpdate, db: AsyncSession = Depends(get_db)):
+    """IMAP/SMTP ayarlarını kaydet."""
+    result = await db.execute(select(UserSettings).limit(1))
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        settings = UserSettings()
+        db.add(settings)
+
+    for field, value in settings_data.model_dump(exclude_none=True).items():
+        setattr(settings, field, value)
+
+    settings.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(settings)
+    return {"message": "Ayarlar kaydedildi", **settings.to_dict()}
+
+
+@app.post("/api/settings/test-imap", summary="IMAP bağlantısını test et")
+async def test_imap_connection(db: AsyncSession = Depends(get_db)):
+    """Kayıtlı IMAP ayarlarıyla bağlantıyı test et."""
+    cfg = await _load_settings(db)
+    if not cfg["imap_username"] or not cfg["imap_password"]:
+        raise HTTPException(status_code=400, detail="IMAP kullanıcı adı ve şifresi girilmemiş")
+
+    client = get_imap_client(
+        host=cfg["imap_host"], port=cfg["imap_port"],
+        username=cfg["imap_username"], password=cfg["imap_password"]
+    )
+    success = client.connect()
+    if success:
+        client.disconnect()
+        return {"success": True, "message": f"IMAP bağlantısı başarılı: {cfg['imap_host']}"}
+    else:
+        raise HTTPException(status_code=400, detail="IMAP bağlantısı başarısız. Bilgilerinizi kontrol edin.")
 
 
 @app.get("/api/health", summary="Sağlık kontrolü")

@@ -5,6 +5,34 @@ from sqlalchemy.orm import relationship
 from backend.database import Base
 
 
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    imap_host = Column(String(255), default="imap.gmail.com")
+    imap_port = Column(Integer, default=993)
+    imap_username = Column(String(255), nullable=True)
+    imap_password = Column(String(255), nullable=True)
+    smtp_host = Column(String(255), default="smtp.gmail.com")
+    smtp_port = Column(Integer, default=587)
+    smtp_username = Column(String(255), nullable=True)
+    smtp_password = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "imap_host": self.imap_host or "imap.gmail.com",
+            "imap_port": self.imap_port or 993,
+            "imap_username": self.imap_username or "",
+            "imap_password_set": bool(self.imap_password),
+            "smtp_host": self.smtp_host or "smtp.gmail.com",
+            "smtp_port": self.smtp_port or 587,
+            "smtp_username": self.smtp_username or "",
+            "smtp_password_set": bool(self.smtp_password),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Email(Base):
     __tablename__ = "emails"
 

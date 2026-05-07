@@ -86,6 +86,10 @@
                     <i class="fas fa-download"></i>
                     <span>IMAP'tan Çek</span>
                 </button>
+                <button class="tool-btn" onclick="showSettings()">
+                    <i class="fas fa-cog"></i>
+                    <span>E-posta Ayarları</span>
+                </button>
             </div>
 
             <!-- İstatistikler -->
@@ -317,6 +321,81 @@
 
     <!-- Bildirim -->
     <div id="notification" class="notification hidden"></div>
+
+    <!-- Modal: E-posta Ayarları -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content wide">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> E-posta Ayarları</h2>
+                <button onclick="closeModal('settings-modal')" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="settings-info">
+                    <i class="fas fa-info-circle"></i>
+                    Gmail kullanıyorsanız: <strong>Uygulama Şifresi</strong> oluşturun
+                    (Google Hesabı → Güvenlik → 2 Adımlı Doğrulama → Uygulama Şifreleri).
+                    Normal Gmail şifreniz çalışmaz.
+                </p>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-inbox"></i> IMAP Ayarları (E-posta Okuma)</h3>
+                    <div class="settings-grid">
+                        <div class="form-group">
+                            <label>IMAP Sunucu</label>
+                            <input type="text" id="set-imap-host" placeholder="imap.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Port</label>
+                            <input type="number" id="set-imap-port" placeholder="993">
+                        </div>
+                        <div class="form-group">
+                            <label>E-posta Adresi</label>
+                            <input type="email" id="set-imap-user" placeholder="siz@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Uygulama Şifresi</label>
+                            <input type="password" id="set-imap-pass" placeholder="xxxx xxxx xxxx xxxx">
+                        </div>
+                    </div>
+                    <button class="small-btn" onclick="testImapConnection()" id="test-imap-btn">
+                        <i class="fas fa-plug"></i> Bağlantıyı Test Et
+                    </button>
+                    <span id="test-imap-result"></span>
+                </div>
+
+                <div class="settings-section">
+                    <h3><i class="fas fa-paper-plane"></i> SMTP Ayarları (E-posta Gönderme)</h3>
+                    <div class="settings-grid">
+                        <div class="form-group">
+                            <label>SMTP Sunucu</label>
+                            <input type="text" id="set-smtp-host" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Port</label>
+                            <input type="number" id="set-smtp-port" placeholder="587">
+                        </div>
+                        <div class="form-group">
+                            <label>E-posta Adresi</label>
+                            <input type="email" id="set-smtp-user" placeholder="siz@gmail.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Uygulama Şifresi</label>
+                            <input type="password" id="set-smtp-pass" placeholder="xxxx xxxx xxxx xxxx">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button onclick="closeModal('settings-modal')" class="cancel-btn">İptal</button>
+                    <button onclick="saveSettings()" class="primary-btn">
+                        <i class="fas fa-save"></i> Ayarları Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

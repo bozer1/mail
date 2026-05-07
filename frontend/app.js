@@ -825,11 +825,101 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// =================== AYARLAR ===================
+
+async function showSettings() {
+    try {
+        const res = await fetch(`${API}/settings`);
+        const data = await res.json();
+
+        document.getElementById('set-imap-host').value = data.imap_host || 'imap.gmail.com';
+        document.getElementById('set-imap-port').value = data.imap_port || 993;
+        document.getElementById('set-imap-user').value = data.imap_username || '';
+        document.getElementById('set-imap-pass').value = '';
+        document.getElementById('set-imap-pass').placeholder =
+            data.imap_password_set ? '(şifre kayıtlı — değiştirmek için girin)' : 'xxxx xxxx xxxx xxxx';
+
+        document.getElementById('set-smtp-host').value = data.smtp_host || 'smtp.gmail.com';
+        document.getElementById('set-smtp-port').value = data.smtp_port || 587;
+        document.getElementById('set-smtp-user').value = data.smtp_username || '';
+        document.getElementById('set-smtp-pass').value = '';
+        document.getElementById('set-smtp-pass').placeholder =
+            data.smtp_password_set ? '(şifre kayıtlı — değiştirmek için girin)' : 'xxxx xxxx xxxx xxxx';
+
+        document.getElementById('test-imap-result').textContent = '';
+    } catch (err) {
+        showNotification('Ayarlar yüklenemedi', 'error');
+    }
+    document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+async function saveSettings() {
+    const payload = {
+        imap_host: document.getElementById('set-imap-host').value.trim() || null,
+        imap_port: parseInt(document.getElementById('set-imap-port').value) || null,
+        imap_username: document.getElementById('set-imap-user').value.trim() || null,
+        smtp_host: document.getElementById('set-smtp-host').value.trim() || null,
+        smtp_port: parseInt(document.getElementById('set-smtp-port').value) || null,
+        smtp_username: document.getElementById('set-smtp-user').value.trim() || null,
+    };
+
+    const imapPass = document.getElementById('set-imap-pass').value;
+    const smtpPass = document.getElementById('set-smtp-pass').value;
+    if (imapPass) payload.imap_password = imapPass;
+    if (smtpPass) payload.smtp_password = smtpPass;
+
+    // Remove null values
+    Object.keys(payload).forEach(k => payload[k] === null && delete payload[k]);
+
+    try {
+        const res = await fetch(`${API}/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Kaydetme hatası');
+        showNotification('Ayarlar kaydedildi!', 'success');
+        closeModal('settings-modal');
+    } catch (err) {
+        showNotification('Kaydetme hatası: ' + err.message, 'error');
+    }
+}
+
+async function testImapConnection() {
+    const btn = document.getElementById('test-imap-btn');
+    const result = document.getElementById('test-imap-result');
+
+    // Önce kaydet, sonra test et
+    await saveSettings();
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner rotating"></i> Test ediliyor...';
+    result.textContent = '';
+    document.getElementById('settings-modal').classList.remove('hidden');
+
+    try {
+        const res = await fetch(`${API}/settings/test-imap`, { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            result.innerHTML = ' <span style="color:#10b981"><i class="fas fa-check-circle"></i> ' + data.message + '</span>';
+        } else {
+            result.innerHTML = ' <span style="color:#ef4444"><i class="fas fa-times-circle"></i> ' + data.detail + '</span>';
+        }
+    } catch (err) {
+        result.innerHTML = ' <span style="color:#ef4444"><i class="fas fa-times-circle"></i> Bağlantı hatası</span>';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-plug"></i> Bağlantıyı Test Et';
+    }
+}
+
 // Klavye kısayolları
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         if (!document.getElementById('stats-modal').classList.contains('hidden')) closeModal('stats-modal');
         else if (!document.getElementById('compose-modal').classList.contains('hidden')) closeModal('compose-modal');
+        else if (!document.getElementById('settings-modal').classList.contains('hidden')) closeModal('settings-modal');
         else closeDetail();
     }
 });

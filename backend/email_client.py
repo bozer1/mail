@@ -33,11 +33,11 @@ def decode_str(value: str) -> str:
 class IMAPClient:
     """IMAP protokolü ile e-posta okuma."""
 
-    def __init__(self):
-        self.host = os.getenv("IMAP_HOST", "imap.gmail.com")
-        self.port = int(os.getenv("IMAP_PORT", "993"))
-        self.username = os.getenv("IMAP_USERNAME", "")
-        self.password = os.getenv("IMAP_PASSWORD", "")
+    def __init__(self, host=None, port=None, username=None, password=None):
+        self.host = host or os.getenv("IMAP_HOST", "imap.gmail.com")
+        self.port = int(port or os.getenv("IMAP_PORT", "993"))
+        self.username = username or os.getenv("IMAP_USERNAME", "")
+        self.password = password or os.getenv("IMAP_PASSWORD", "")
         self.connection = None
 
     def connect(self) -> bool:
@@ -166,11 +166,11 @@ class IMAPClient:
 class SMTPClient:
     """SMTP protokolü ile e-posta gönderme."""
 
-    def __init__(self):
-        self.host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-        self.port = int(os.getenv("SMTP_PORT", "587"))
-        self.username = os.getenv("SMTP_USERNAME", "")
-        self.password = os.getenv("SMTP_PASSWORD", "")
+    def __init__(self, host=None, port=None, username=None, password=None):
+        self.host = host or os.getenv("SMTP_HOST", "smtp.gmail.com")
+        self.port = int(port or os.getenv("SMTP_PORT", "587"))
+        self.username = username or os.getenv("SMTP_USERNAME", "")
+        self.password = password or os.getenv("SMTP_PASSWORD", "")
 
     def send_email(
         self,
@@ -208,9 +208,9 @@ class SMTPClient:
             return False
 
 
-def get_imap_client() -> IMAPClient:
-    return IMAPClient()
+def get_imap_client(host=None, port=None, username=None, password=None) -> IMAPClient:
+    return IMAPClient(host=host, port=port, username=username, password=password)
 
 
-def get_smtp_client() -> SMTPClient:
-    return SMTPClient()
+def get_smtp_client(host=None, port=None, username=None, password=None) -> SMTPClient:
+    return SMTPClient(host=host, port=port, username=username, password=password)
